@@ -2,8 +2,9 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdatomic.h>
 
-#include "cstr.h"
+#include "cstr_t.h"
 
 #define INTERNING_POOL_SIZE 1024
 
@@ -20,7 +21,8 @@ struct __cstr_pool {
 };
 
 struct __cstr_interning {
-    int lock;
+    volatile int lock;
+    //atomic_flag lock;
     int index;
     unsigned size;
     unsigned total;
@@ -33,13 +35,14 @@ static struct __cstr_interning __cstr_ctx;
 /* FIXME: use C11 atomics */
 // https://en.cppreference.com/w/c/atomic/atomic_flag_test_and_set
 // https://en.cppreference.com/w/c/atomic/atomic_flag
+// https://stackoverflow.com/questions/49932746/what-is-the-gcc-builtin-for-an-atomic-set
 #define CSTR_LOCK()                                               \
     ({                                                            \
         while (__sync_lock_test_and_set(&(__cstr_ctx.lock), 1)) { \
         }                                                         \
     })
     
-#define CSTR_UNLOCK() ({ __sync_lock_release(&(__cstr_ctx.lock)); })
+#define CSTR_UNLOCK() ({ atomic_flag_clear(&(__cstr_ctx.lock)); })
 
 /**
  * type __sync_lock_test_and_set (type *ptr, type value, ...)

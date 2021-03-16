@@ -39,6 +39,19 @@ static struct __cstr_interning __cstr_ctx;
     
 #define CSTR_UNLOCK() ({ __sync_lock_release(&(__cstr_ctx.lock)); })
 
+/**
+ * type __sync_lock_test_and_set (type *ptr, type value, ...)
+ * This builtin, as described by Intel, is not a traditional test-and-set operation,
+ *  but rather an atomic exchange operation.
+ * It writes value into *ptr, and returns the previous contents of *ptr.
+ * Many targets have only minimal support for such locks, and do not support a full exchange operation.
+ * In this case, a target may support reduced functionality here by which the only valid value to store is the immediate constant 1.
+ * The exact value actually stored in *ptr is implementation defined.
+ * This builtin is not a full barrier, but rather an acquire barrier.
+ * This means that references after the builtin cannot move to (or be speculated to) before the builtin, but previous memory stores may not be globally visible yet, and previous memory loads may not yet be satisfied.
+ */
+
+
 static void *xalloc(size_t n)
 {
     void *m = malloc(n);
@@ -82,15 +95,24 @@ static void expand(struct __cstr_interning *si)
 }
 
 static cstring interning(struct __cstr_interning *si,
-                         const char *cstr,
+                         const char *cstr,  //we
                          size_t sz,
                          uint32_t hash)
 {
+    //__cstr_node is NULL return NULL
     if (!si->hash)
         return NULL;
 
+
+    // x & 7(0111) == x % 8(1000)
+    // get the hash number of leader node
     int index = (int) (hash & (si->size - 1));
+    // take the node from the hash
     struct __cstr_node *n = si->hash[index];
+    /**
+     * find the actually node in the list, and return it.
+     * doesn't find it, then go through
+     */
     while (n) {
         if (n->str.hash_size == hash) {
             if (!strcmp(n->str.cstr, cstr))
@@ -99,12 +121,16 @@ static cstring interning(struct __cstr_interning *si,
         n = n->next;
     }
     // 80% (4/5) threshold
+    // current has (total) / can save (size) >= 4 / 5
     if (si->total * 5 >= si->size * 4)
         return NULL;
+    // first call
     if (!si->pool) {
         si->pool = xalloc(sizeof(struct __cstr_pool));
         si->index = 0;
     }
+
+    // add leader in pool
     n = &si->pool->node[si->index++];
     memcpy(n->buffer, cstr, sz);
     n->buffer[sz] = 0;
@@ -126,6 +152,8 @@ static cstring cstr_interning(const char *cstr, size_t sz, uint32_t hash)
     cstring ret;
     CSTR_LOCK();
     ret = interning(&__cstr_ctx, cstr, sz, hash);
+    // 80% (4/5) threshold
+    // current has (total) / can save (size) >= 4 / 5, then ret == NULL
     if (!ret) {
         expand(&__cstr_ctx);
         ret = interning(&__cstr_ctx, cstr, sz, hash);
@@ -135,15 +163,30 @@ static cstring cstr_interning(const char *cstr, size_t sz, uint32_t hash)
     return ret;
 }
 
+
+/**
+ * using string's ASCII number and string len to 
+ * calculate the hash_size and return hash_size.
+ */
 static inline uint32_t hash_blob(const char *buffer, size_t len)
 {
     const uint8_t *ptr = (const uint8_t *) buffer;
     size_t h = len;
+    /**
+     * assume len       = 1000 0000 (128)
+     *        lem >> 5  = 0000 0100 (4)
+     *             + 1  = 0000 0101 (5)
+     *            step  = 0000 0101 (5)
+     */
     size_t step = (len >> 5) + 1;
+    /**
+     * 128 ~ 5 == len ~ step per - step
+     */            
     for (size_t i = len; i >= step; i -= step)
         h = h ^ ((h << 5) + (h >> 2) + ptr[i - 1]);
     return h == 0 ? 1 : h;
 }
+
 
 cstring cstr_clone(const char *cstr, size_t sz)
 {
@@ -213,11 +256,13 @@ int cstr_equal(cstring a, cstring b)
 static cstring cstr_cat2(const char *a, const char *b)
 {
     size_t sa = strlen(a), sb = strlen(b);
+    //CSTR_INTERNING_SIZE 32
     if (sa + sb < CSTR_INTERNING_SIZE) {
         char tmp[CSTR_INTERNING_SIZE];
         memcpy(tmp, a, sa);
         memcpy(tmp + sa, b, sb);
         tmp[sa + sb] = 0;
+                          //string   len      hash_size
         return cstr_interning(tmp, sa + sb, hash_blob(tmp, sa + sb));
     }
     cstring p = xalloc(sizeof(struct __cstr_data) + sa + sb + 1);
@@ -242,6 +287,7 @@ cstring cstr_cat(cstr_buffer sb, const char *str)
         int i = s->hash_size;
         while (i < CSTR_STACK_SIZE - 1) {
             s->cstr[i] = *str;
+            // if end return.
             if (*str == 0)
                 return s;
             ++s->hash_size;
@@ -249,6 +295,7 @@ cstring cstr_cat(cstr_buffer sb, const char *str)
             ++i;
         }
         s->cstr[i] = 0;
+        // prevent out of range so not return here.
     }
     cstring tmp = s;
     sb->str = cstr_cat2(tmp->cstr, str);
