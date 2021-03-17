@@ -21,8 +21,8 @@ struct __cstr_pool {
 };
 
 struct __cstr_interning {
-    volatile int lock;
-    //atomic_flag lock;
+    //volatile int lock;
+    volatile atomic_flag lock;
     int index;
     unsigned size;
     unsigned total;
@@ -30,19 +30,17 @@ struct __cstr_interning {
     struct __cstr_pool *pool;
 };
 
-static struct __cstr_interning __cstr_ctx;
+static struct __cstr_interning __cstr_ctx = {.lock = ATOMIC_FLAG_INIT};
 
 /* FIXME: use C11 atomics */
-// https://en.cppreference.com/w/c/atomic/atomic_flag_test_and_set
-// https://en.cppreference.com/w/c/atomic/atomic_flag
-// https://stackoverflow.com/questions/49932746/what-is-the-gcc-builtin-for-an-atomic-set
 #define CSTR_LOCK()                                               \
     ({                                                            \
-        while (__sync_lock_test_and_set(&(__cstr_ctx.lock), 1)) { \
+        while (atomic_flag_test_and_set(&(__cstr_ctx.lock))) {    \
         }                                                         \
     })
     
 #define CSTR_UNLOCK() ({ atomic_flag_clear(&(__cstr_ctx.lock)); })
+
 
 /**
  * type __sync_lock_test_and_set (type *ptr, type value, ...)
@@ -84,7 +82,7 @@ static void expand(struct __cstr_interning *si)
     struct __cstr_node **new_hash =
         xalloc(sizeof(struct __cstr_node *) * new_size);
     memset(new_hash, 0, sizeof(struct __cstr_node *) * new_size);
-
+    
     for (unsigned i = 0; i < si->size; ++i) {
         struct __cstr_node *node = si->hash[i];
         while (node) {
@@ -108,7 +106,6 @@ static cstring interning(struct __cstr_interning *si,
     if (!si->hash)
         return NULL;
 
-
     // x & 7(0111) == x % 8(1000)
     // get the hash number of leader node
     int index = (int) (hash & (si->size - 1));
@@ -120,8 +117,10 @@ static cstring interning(struct __cstr_interning *si,
      */
     while (n) {
         if (n->str.hash_size == hash) {
-            if (!strcmp(n->str.cstr, cstr))
+            if (!strcmp(n->str.cstr, cstr)) {
+                //printf("find %s\n", n->str.cstr);
                 return &n->str;
+            }
         }
         n = n->next;
     }
@@ -145,6 +144,9 @@ static cstring interning(struct __cstr_interning *si,
     cs->hash_size = hash;
     cs->type = CSTR_INTERNING;
     cs->ref = 0;
+
+    //printf("change %s\n", cs->cstr);
+    //printf("interning type %d\n", cs->type);
 
     n->next = si->hash[index];
     si->hash[index] = n;
@@ -260,6 +262,7 @@ int cstr_equal(cstring a, cstring b)
 
 static cstring cstr_cat2(const char *a, const char *b)
 {
+    //CSTR_LOCK();
     size_t sa = strlen(a), sb = strlen(b);
     //CSTR_INTERNING_SIZE 32
     if (sa + sb < CSTR_INTERNING_SIZE) {
@@ -267,12 +270,16 @@ static cstring cstr_cat2(const char *a, const char *b)
         memcpy(tmp, a, sa);
         memcpy(tmp + sa, b, sb);
         tmp[sa + sb] = 0;
+            
+        //CSTR_UNLOCK();
                           //string   len      hash_size
         return cstr_interning(tmp, sa + sb, hash_blob(tmp, sa + sb));
     }
     cstring p = xalloc(sizeof(struct __cstr_data) + sa + sb + 1);
-    if (!p)
+    if (!p) {
+        //CSTR_UNLOCK();
         return NULL;
+    }
 
     char *ptr = (char *) (p + 1);
     p->cstr = ptr;
@@ -282,19 +289,24 @@ static cstring cstr_cat2(const char *a, const char *b)
     memcpy(ptr + sa, b, sb);
     ptr[sa + sb] = 0;
     p->hash_size = 0;
+    //CSTR_UNLOCK();
     return p;
 }
 
 cstring cstr_cat(cstr_buffer sb, const char *str)
 {
     cstring s = sb->str;
+    //CSTR_LOCK();
     if (s->type == CSTR_ONSTACK) {
         int i = s->hash_size;
         while (i < CSTR_STACK_SIZE - 1) {
             s->cstr[i] = *str;
+
             // if end return.
-            if (*str == 0)
+            if (*str == 0) {
+                //CSTR_UNLOCK();
                 return s;
+            }
             ++s->hash_size;
             ++str;
             ++i;
@@ -303,6 +315,7 @@ cstring cstr_cat(cstr_buffer sb, const char *str)
         // prevent out of range so not return here.
     }
     cstring tmp = s;
+    //CSTR_UNLOCK();
     sb->str = cstr_cat2(tmp->cstr, str);
     cstr_release(tmp);
     return sb->str;
