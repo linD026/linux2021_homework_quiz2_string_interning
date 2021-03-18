@@ -1,0 +1,131 @@
+
+
+
+
+for i in {1..100000}; do ./thread_ref; done
+
+---
+> ns
+> normal, no  sleep, O0, thread 10 
+
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+
+real	1m39.058s
+user	1m32.642s
+sys	0m42.784s
+
+
+---
+> ns
+> atomic, no  sleep, O0, thread 10 
+
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+
+real	1m39.635s
+user	1m33.046s
+sys	0m42.689s
+
+
+---
+> normal, no  sleep, O0, thread 10 
+
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+
+real	1m41.521s
+user	1m33.064s
+sys	0m42.714s
+---
+> atomic, no  sleep, O0, thread 10 
+
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+free
+ans: 6, ref: 0, type : 1 (need = 0)
+thread_ref: thread.c:179: test1: Assertion `0' failed.
+Aborted (core dumped)
+
+real	1m39.358s
+user	1m33.164s
+sys	0m42.645s
+
+
+
+---
+> ns
+> normal, 0.5 sleep, O0, thread 10 
+
+real	1m42.977s
+user	1m28.333s
+sys	0m40.561s
+
+
+---
+> ns
+> atomic, 0.5 sleep, O0, thread 10 
+
+real	1m42.345s
+user	1m27.788s
+sys	0m40.234s
+
+
+---
+> normal, 0.5 sleep, O0, thread 10 
+	
+real	1m43.569s
+user	1m27.705s
+sys	0m40.866s
+
+---
+> atomic, 0.5 sleep, O0, thread 10
+
+real	1m42.399s
+user	1m27.427s
+sys	0m40.454s
+
