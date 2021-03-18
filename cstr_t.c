@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdatomic.h>
+#include <pthread.h>
 
 #include "cstr_t.h"
 
@@ -33,6 +34,7 @@ struct __cstr_interning {
 static struct __cstr_interning __cstr_ctx = {.lock = ATOMIC_FLAG_INIT};
 
 /* FIXME: use C11 atomics */
+// CAS : ez
 #define CSTR_LOCK()                                               \
     ({                                                            \
         while (atomic_flag_test_and_set(&(__cstr_ctx.lock))) {    \
@@ -118,7 +120,7 @@ static cstring interning(struct __cstr_interning *si,
     while (n) {
         if (n->str.hash_size == hash) {
             if (!strcmp(n->str.cstr, cstr)) {
-                //printf("find %s\n", n->str.cstr);
+                //printf("ID %ld : %s ref %d\n", pthread_self(), n->str.cstr, n->str.ref);
                 return &n->str;
             }
         }
@@ -139,15 +141,12 @@ static cstring interning(struct __cstr_interning *si,
     memcpy(n->buffer, cstr, sz);
     n->buffer[sz] = 0;
 
+    // don't need atomic because it is in the lock
     cstring cs = &n->str;
     cs->cstr = n->buffer;
     cs->hash_size = hash;
     cs->type = CSTR_INTERNING;
     cs->ref = 0;
-
-    //printf("change %s\n", cs->cstr);
-    //printf("interning type %d\n", cs->type);
-
     n->next = si->hash[index];
     si->hash[index] = n;
 
@@ -156,8 +155,8 @@ static cstring interning(struct __cstr_interning *si,
 
 static cstring cstr_interning(const char *cstr, size_t sz, uint32_t hash)
 {
-    cstring ret;
     CSTR_LOCK();
+    cstring ret;
     ret = interning(&__cstr_ctx, cstr, sz, hash);
     // 80% (4/5) threshold
     // current has (total) / can save (size) >= 4 / 5, then ret == NULL
@@ -226,11 +225,14 @@ cstring cstr_grab(cstring s)
 }
 
 void cstr_release(cstring s)
-{
+{   
+    //printf("%d\n", s->type);
     if (s->type || !s->ref)
         return;
-    if (__sync_sub_and_fetch(&s->ref, 1) == 0)
-        free(s);
+    if (__sync_sub_and_fetch(&s->ref, 1) == 0) {
+        printf("free\n");
+        //free(s);
+    }
 }
 
 static size_t cstr_hash(cstring s)
@@ -270,9 +272,7 @@ static cstring cstr_cat2(const char *a, const char *b)
         memcpy(tmp, a, sa);
         memcpy(tmp + sa, b, sb);
         tmp[sa + sb] = 0;
-            
-        //CSTR_UNLOCK();
-                          //string   len      hash_size
+        //CSTR_UNLOCK();       //string   len      hash_size
         return cstr_interning(tmp, sa + sb, hash_blob(tmp, sa + sb));
     }
     cstring p = xalloc(sizeof(struct __cstr_data) + sa + sb + 1);

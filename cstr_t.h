@@ -2,6 +2,8 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdatomic.h>
+
 
 enum {
     CSTR_PERMANENT = 1,
@@ -12,11 +14,19 @@ enum {
 #define CSTR_INTERNING_SIZE (32)
 #define CSTR_STACK_SIZE (128)
 
+/*
 typedef struct __cstr_data {
     char *cstr;
     uint32_t hash_size;
     uint16_t type;
     uint16_t ref;
+} * cstring; */
+
+typedef struct __cstr_data {
+    char *cstr;
+    volatile atomic_uint hash_size; // uint32_t
+    volatile atomic_ushort type; // uint16_t atomic_ushort
+    volatile atomic_ushort ref; // uint16_t
 } * cstring;
 
 typedef struct __cstr_buffer {
