@@ -161,9 +161,8 @@ static void test1(void) {
     for (j = 0; j < (thread_n/2); j++)
       pthread_create(&thread[j], NULL, (void *)test_ref_create_ns, (void *)a);
 
-    //sleep(0.5);
-    //printf("ref: %d, type %d\n", a->str->ref, a->str->type);
-
+    // sleep(0.5);
+    // printf("ref: %d, type %d\n", a->str->ref, a->str->type);
 
     for (;j < thread_n;j++)
       pthread_create(&thread[j], NULL, (void *)test_ref_del_ns, (void *)a);

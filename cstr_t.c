@@ -231,7 +231,7 @@ void cstr_release(cstring s)
         return;
     if (__sync_sub_and_fetch(&s->ref, 1) == 0) {
         printf("free\n");
-        //free(s);
+        // free(s);
     }
 }
 
@@ -315,7 +315,7 @@ cstring cstr_cat(cstr_buffer sb, const char *str)
         // prevent out of range so not return here.
     }
     cstring tmp = s;
-    //CSTR_UNLOCK();
+    // CSTR_UNLOCK();
     sb->str = cstr_cat2(tmp->cstr, str);
     cstr_release(tmp);
     return sb->str;
